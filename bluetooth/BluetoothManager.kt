@@ -2,25 +2,17 @@ package com.tcorp.cap.bluetooth
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
-import android.os.Looper
+import android.content.Intent
 import android.util.Log
-import android.widget.Toast
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
-import kotlinx.coroutines.Dispatchers.Unconfined
 import kotlinx.coroutines.NonCancellable.isActive
 import java.nio.charset.Charset
-import java.sql.Time
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.util.*
-import kotlin.Exception
-import kotlin.collections.HashMap
 
 
 private const val BLUETOOTH_SPP = "00001101-0000-1000-8000-00805F9B34FB"
@@ -28,16 +20,17 @@ private const val TAG = "BluetoothManager"
 
 /**
  * An easy way to create and manage bluetooth SPP sockets
- * @param context application Context
  * @param btDevice a BluetoothDevice you want to connect
  * @param target sets a class where it will create a BTListener (or you can set a target by setTargetFragment ToDo
+ * @param context context of banded BluetoothService
+ * @param startInputStream
  */
 @InternalCoroutinesApi
 @ExperimentalCoroutinesApi
 class BluetoothManager(
-    private val context: Context,
     private val btDevice: BluetoothDevice,
     var target: Context,
+    private val context: Context,
     startInputStream: Boolean = true
 ) {
 
@@ -65,17 +58,23 @@ class BluetoothManager(
     private var periodicCheckerJob: Job? = null
 
 
+
+
     init {
+
         if (BluetoothAdapter.getDefaultAdapter() != null) {
             Log.d(TAG, "target is: $target")
             btListener = target as BTListener
             CoroutineScope(IO).launch { connectToDevice(btDevice, startInputStream) }
         } else {
             state = BtConnectionState.NO_BLUETOOTH
+            CoroutineScope(Main).launch { btListener?.onNoBluetooth() }
         }
-
-
     }
+
+
+
+
 
     @InternalCoroutinesApi
     private suspend fun connectToDevice(device: BluetoothDevice, startInputStream: Boolean) {
@@ -84,7 +83,7 @@ class BluetoothManager(
 
 
         try {
-            withTimeout(10000) {
+            withTimeout(15000) {
 
                 val socket = device.createRfcommSocketToServiceRecord(UUID.fromString(BLUETOOTH_SPP))
                 socket.connect()
@@ -104,7 +103,9 @@ class BluetoothManager(
 
         } catch (e: Exception) {
             state = BtConnectionState.DISCONNECTED
-            CoroutineScope(Main).launch { btListener?.onConnectionError(device) }
+            CoroutineScope(Main).launch {
+                serviceIntentOnDisconnect()
+                btListener?.onConnectionError(device) }
         }
 
     }
@@ -122,7 +123,8 @@ class BluetoothManager(
                     if (len != 0) {
                         val data = String(buffer.copyOf(len))
                         Log.d(TAG, "data from socket is: $data")
-                        CoroutineScope(Main).launch { btListener?.onRead(data, btDevice) }
+                        CoroutineScope(Main).launch {
+                            btListener?.onRead(data, btDevice) }
                     }
                 }
             } catch (ex: Exception) {
@@ -132,7 +134,9 @@ class BluetoothManager(
                 } finally {
                     btsocket = null
 
-                    CoroutineScope(Main).launch { btListener?.onDisconnect(btDevice) }
+                    CoroutineScope(Main).launch {
+                        serviceIntentOnDisconnect()
+                        btListener?.onDisconnect(btDevice) }
                 }
             }
         }
@@ -257,6 +261,10 @@ class BluetoothManager(
 
         } finally {
             btsocket = null
+            CoroutineScope(Main).launch {
+                serviceIntentOnDisconnect()
+                btListener?.onDisconnect(btDevice)
+            }
         }
     }
 
@@ -267,12 +275,21 @@ class BluetoothManager(
     @InternalCoroutinesApi
     private suspend fun periodicCheckForConnection() {
         while (isActive) {
-            delay(1500)
+            delay(100)
             if (!isConnected()) {
                 state = BtConnectionState.DISCONNECTED
-                CoroutineScope(Main).launch { btListener?.onDisconnect(btDevice) }
+                CoroutineScope(Main).launch {
+                    serviceIntentOnDisconnect()
+                    btListener?.onDisconnect(btDevice) }
                 break
             }
+        }
+    }
+
+    private fun serviceIntentOnDisconnect(){
+        Intent(context, BluetoothService::class.java).apply {
+            putExtra(Constants.IntentOnDisconnect.string, Constants.IntentOnDisconnect.string )
+            putExtra(Constants.DeviceName.string, btDevice)
         }
     }
 }
