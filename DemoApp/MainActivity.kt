@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
         list.setOnItemClickListener { _, _, position, _ ->
             device = bondedDevices[position]
-            if (bluetoothService.connected(device) == false){
+            if (!bluetoothService.connected(device)){
                 bluetoothService.add(device, BluetoothManager(device, this, this,true))
             }else{
                 CoroutineScope(IO).launch { bluetoothService.getBluetoothManager(device)?.disconnect() }
@@ -131,6 +131,7 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
     override fun onDisconnect(btDevice: BluetoothDevice) {
         Toast.makeText(applicationContext, "Disconnected to ${btDevice.name}", Toast.LENGTH_SHORT).show()
+        conState.text = BtConnectionState.DISCONNECTED.state
     }
 
 
@@ -143,7 +144,9 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             mBound = false
+            Log.d(TAG, "service disconnected")
         }
+
     }
 
 
