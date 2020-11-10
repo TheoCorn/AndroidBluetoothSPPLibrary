@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
     private lateinit var bluetoothService: BluetoothService
     private var mBound = false
-    
+
     private lateinit var conState: TextView
     private lateinit var txt: TextView
     private lateinit var list: ListView
@@ -66,7 +66,6 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
         val adapter = ArrayAdapter(applicationContext, android.R.layout.simple_list_item_1, names)
         list.adapter = adapter
-        list.deferNotifyDataSetChanged()
 
         list.setOnItemClickListener { _, _, position, _ ->
             device = bondedDevices[position]
@@ -74,6 +73,7 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
                 bluetoothService.add(device, BluetoothManager(device, this, this,true))
             }else{
                 CoroutineScope(IO).launch { bluetoothService.getBluetoothManager(device)?.disconnect() }
+                Log.d(TAG, "disconnect")
             }
         }
 
@@ -86,8 +86,9 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
     private suspend fun checkForConnectedDevices() {
         while (!this::bluetoothService.isInitialized) {
-            delay(500)
+            delay(100)
         }
+        Log.d(TAG, "btService is init")
         bondedDevices.addAll(bluetoothService.getConnectedDevices())
         if (bluetoothService.getConnectedDevices().isNotEmpty()){
             runOnUiThread { conState.text = BtConnectionState.CONNECTED.state }
