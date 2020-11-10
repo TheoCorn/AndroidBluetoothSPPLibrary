@@ -27,8 +27,7 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
     private lateinit var bluetoothService: BluetoothService
     private var mBound = false
-
-    private lateinit var conn: Button
+    
     private lateinit var conState: TextView
     private lateinit var txt: TextView
     private lateinit var list: ListView
@@ -37,8 +36,6 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
 
     private val bondedDevices = mutableListOf<BluetoothDevice>()
 
-
-    private var btManger: BluetoothManager? = null
 
 
 
@@ -76,7 +73,7 @@ class MainActivity : AppCompatActivity(), BluetoothManager.BTListener {
             if (bluetoothService.connected(device) == false){
                 bluetoothService.add(device, BluetoothManager(device, this, this,true))
             }else{
-                CoroutineScope(IO).launch { btManger?.disconnect() }
+                CoroutineScope(IO).launch { bluetoothService.getBluetoothManager(device)?.disconnect() }
             }
         }
 
